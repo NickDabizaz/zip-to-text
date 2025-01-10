@@ -1,15 +1,193 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Uploader</title>
-</head>
-<body>
-    <h1>Upload Your ZIP File</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".zip" required>
-        <button type="submit">Upload</button>
-    </form>
-</body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Advanced ZIP File Processor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+    <style>
+      ul {
+        list-style-type: none;
+        padding-left: 20px;
+      }
+      ul ul {
+        margin-left: 20px;
+      }
+      #alertCopy {
+        display: none;
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1055;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container mt-5">
+      <h1 class="text-center mb-4">Advanced ZIP File Processor</h1>
+      
+      <div class="card shadow-sm p-4 mb-4">
+        <form onsubmit="uploadZip(event)" class="mb-3">
+          <div class="mb-3">
+            <label for="zipFile" class="form-label">Upload ZIP File</label>
+            <input type="file" id="zipFile" name="zipFile" accept=".zip" class="form-control" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Submit</button>
+        </form>
+      </div>
+      
+      <div class="card shadow-sm p-4 mb-4">
+        <button type="button" class="btn btn-secondary mb-3 w-100" onclick="toggleSelectAll()">Select All / Unselect All</button>
+        <form id="fileForm" onsubmit="processSelectedFiles(event)">
+          <div id="fileList"></div>
+          <button type="submit" class="btn btn-success w-100 mt-3">Generate Output</button>
+        </form>
+      </div>
+
+      <div class="card shadow-sm p-4">
+        <label for="outputTextarea" class="form-label">Generated Output</label>
+        <textarea id="outputTextarea" class="form-control" rows="10" readonly></textarea>
+        <button class="btn btn-outline-primary mt-3" onclick="copyToClipboard()">Copy to Clipboard</button>
+        <button class="btn btn-outline-success mt-3" onclick="downloadOutput()">Download as File</button>
+      </div>
+    </div>
+
+    <!-- Alert for Copy -->
+    <div id="alertCopy" class="alert alert-success alert-dismissible fade show" role="alert">
+      Text copied to clipboard!
+    </div>
+
+    <script>
+        let allSelected = false;
+
+        function uploadZip(event) {
+            event.preventDefault();
+            const formData = new FormData();
+            const fileInput = document.getElementById('zipFile');
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/upload', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(files => {
+                    const fileTree = buildFileTree(files);
+                    const fileList = document.getElementById('fileList');
+                    fileList.innerHTML = '';
+                    fileList.appendChild(fileTree);
+                });
+        }
+
+        function buildFileTree(files) {
+            const root = {};
+            files.forEach(file => {
+                const parts = file.filename.split('/');
+                let current = root;
+                parts.forEach((part, index) => {
+                    if (!current[part]) {
+                        current[part] = index === parts.length - 1 ? { __file: true, filename: file.filename } : {};
+                    }
+                    current = current[part];
+                });
+            });
+
+            function renderTree(node) {
+                const ul = document.createElement('ul');
+                for (const key in node) {
+                    const li = document.createElement('li');
+                    if (node[key].__file) {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.name = 'selected_files[]';
+                        checkbox.value = node[key].filename;
+
+                        const label = document.createElement('label');
+                        label.textContent = key;
+                        label.style.marginLeft = '10px';
+
+                        li.appendChild(checkbox);
+                        li.appendChild(label);
+                    } else {
+                        const folderHeader = document.createElement('div');
+                        folderHeader.style.display = 'flex';
+                        folderHeader.style.alignItems = 'center';
+
+                        const folderName = document.createElement('span');
+                        folderName.textContent = key;
+                        folderName.style.marginRight = '10px';
+
+                        const toggleButton = document.createElement('button');
+                        toggleButton.textContent = '+';
+                        toggleButton.className = 'btn btn-sm btn-outline-secondary';
+                        toggleButton.onclick = (event) => toggleFolderSelection(event, li, toggleButton);
+
+                        folderHeader.appendChild(folderName);
+                        folderHeader.appendChild(toggleButton);
+                        li.appendChild(folderHeader);
+                        li.appendChild(renderTree(node[key]));
+                    }
+                    ul.appendChild(li);
+                }
+                return ul;
+            }
+
+            return renderTree(root);
+        }
+
+        function toggleFolderSelection(event, folderElement, toggleButton) {
+            event.preventDefault();
+            const checkboxes = folderElement.querySelectorAll('input[type="checkbox"]');
+            const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
+
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !allChecked;
+            });
+
+            toggleButton.textContent = allChecked ? '+' : '-';
+        }
+
+        function toggleSelectAll() {
+            allSelected = !allSelected;
+            const checkboxes = document.querySelectorAll('#fileList input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = allSelected;
+            });
+        }
+
+        function processSelectedFiles(event) {
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('fileForm'));
+            const fileInput = document.getElementById('zipFile');
+            formData.append('zip_file', fileInput.files[0]);
+
+            fetch('/process', { method: 'POST', body: formData })
+                .then(response => response.text())
+                .then(text => {
+                    const textarea = document.getElementById('outputTextarea');
+                    textarea.value = text;
+                });
+        }
+
+        function copyToClipboard() {
+            const textarea = document.getElementById('outputTextarea');
+            textarea.select();
+            document.execCommand('copy');
+
+            const alertCopy = document.getElementById('alertCopy');
+            alertCopy.style.display = 'block';
+            setTimeout(() => {
+                alertCopy.style.display = 'none';
+            }, 2000);
+        }
+
+        function downloadOutput() {
+            const textarea = document.getElementById('outputTextarea');
+            const blob = new Blob([textarea.value], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'output.txt';
+            a.click();
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
+  </body>
 </html>

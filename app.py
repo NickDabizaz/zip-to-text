@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, jsonify, render_template
 import zipfile
 import io
 
@@ -23,26 +23,30 @@ def upload_file():
     # Process the zip file in memory
     zip_stream = io.BytesIO(file.read())
     with zipfile.ZipFile(zip_stream, 'r') as zip_ref:
-        output_content = []
+        files = [
+            {"filename": file_info.filename, "is_dir": file_info.is_dir()}
+            for file_info in zip_ref.infolist()
+            if not file_info.is_dir()
+        ]
+
+    return jsonify(files)
+
+@app.route('/process', methods=['POST'])
+def process_files():
+    selected_files = request.form.getlist('selected_files[]')
+    zip_stream = io.BytesIO(request.files['zip_file'].read())
+
+    output_content = []
+    with zipfile.ZipFile(zip_stream, 'r') as zip_ref:
         for file_info in zip_ref.infolist():
-            if file_info.is_dir():
-                continue
-            with zip_ref.open(file_info) as f:
-                file_content = f.read().decode('utf-8', errors='ignore')
-                output_content.append(f"{file_info.filename}\n```\n{{{{{file_content}}}}}\n```\n\n")
+            if file_info.filename in selected_files:
+                with zip_ref.open(file_info) as f:
+                    file_content = f.read().decode('utf-8', errors='ignore')
+                    output_content.append(
+                        f"{file_info.filename}\n```\n{file_content}\n```\n\n"
+                    )
 
-    # Create the output file in memory
-    output_stream = io.BytesIO()
-    output_stream.write("\n".join(output_content).encode('utf-8'))
-    output_stream.seek(0)
-
-    # Return the file as a downloadable response
-    return send_file(
-        output_stream,
-        as_attachment=True,
-        download_name='output.txt',
-        mimetype='text/plain'
-    )
+    return "\n".join(output_content)
 
 if __name__ == '__main__':
     app.run(debug=True)
