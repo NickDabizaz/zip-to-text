@@ -24,24 +24,13 @@ Pindah ke folder proyek:
 cd zip-to-text
 ```
 
-### **3. Instal Dependensi**
-Pastikan Python telah terinstal. Kemudian instal dependensi menggunakan `pip`:
-```bash
-pip install -r requirements.txt
-```
-
-Jika file `requirements.txt` belum ada, instal Flask secara manual:
-```bash
-pip install flask
-```
-
-### **4. Jalankan Aplikasi**
+### **3. Jalankan Aplikasi**
 Jalankan aplikasi dengan perintah berikut:
 ```bash
 python app.py
 ```
 
-### **5. Akses Aplikasi**
+### **4. Akses Aplikasi**
 Buka browser dan akses aplikasi di:
 ```
 http://127.0.0.1:5000
@@ -63,7 +52,6 @@ zip-to-text/
 ├── app.py
 ├── templates/
 │   └── index.html
-├── requirements.txt
 └── README.md
 ```
 
